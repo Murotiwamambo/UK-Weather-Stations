@@ -1,0 +1,4019 @@
+---
+title: 'Exploring The UK Weather Stations'
+author: 'Murotiwamambo Mudziviri'
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 5
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '5'
+---
+
+\newpage
+
+
+## INTRODUCTION
+
+The following report was generated using R Markdown. It is accompanied by a file named "UK_Weather.zip" that contains all the data that was obtained, generated and used data in this report. It also contains a file named "UK_weather.Rmd" which is the actual R Markdown file used to generate this report. The R Markdown file contains fully annotated code for all the parts. 
+
+## PART 0 : Preparing the Weather Stations Data
+
+Data from 37 weather stations was imported from the UK Met Office website (Historic Station). The raw data presented several challenges that had to be rectified before commencing any form of analysis. Some of the challenges were:
+
+1. A lot of missing data. Some stations were missing a full column or a significant portion of multiple columns.
+
+2. The starting and ending years of the data was not consistend from station to station. Some stations started recording data in the 1800s. Others were even closed decades ago. 
+
+3. There were special characters included in the data to communicate different things. 
+
+
+### Steps taken to clean the weather stations data
+
+All the data was imported from the same website and saved in a common folder as "stationname_raw.txt". All comments and special characters were removed to remain with column names and numeric values only. The data marked as "provisional" was also removed because it had not gone through a full network quality control yet. Such data could lead to wrong conclusions if riddled with errors that have not been caught yet.  
+
+Other missing values within columns were replaced by "NA", a place holder that is acceptable in R. A value of 0 could have been used, but it affects the results of computations performed on the data. Therefore, it may result in misleading findings.
+
+The values marked as "NA" were ignored during computations such as finding the mean, e.t.c. For example, if a data set with 10 values including a single "NA" is used to find the mean, the result will be the mean calculated from the remaining 9 non "NA" values. 
+
+Upon completion of the data cleaning as described above, the resulting file was exported as a "station.csv" document for use in other parts of the analysis. An example of the first few rows of clean data is shown in Table 1 below.  
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+#### Libararies used in the weather station data cleaning 
+library(tidyverse)
+library(stringi)
+library(readr)
+
+```
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+
+#CODE FOR WEATHER STATION DATA CLEANING #############
+
+### 1. Nairn ###############################
+rm(list = ls())
+
+#Downloading the data from Nairn
+download.file("http://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/nairndata.txt", "Nairn_raw.txt")
+
+#Reading the data
+(Nairn_txt = readLines("Nairn_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Nairn_txt <-  Nairn_txt[7: length(Nairn_txt)]
+Nairn_txt <-  Nairn_txt[-2]
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Nairn_txt)
+Nairn_txt <- Nairn_txt[!p_data]
+
+#spliting the text 
+Sep_Nairn <- strsplit(Nairn_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Nairn)){
+  row_i <- Sep_Nairn[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Nairn.csv", sep = ",", row.names = FALSE)
+```
+
+##### Table 1: The first 5 rows of cleaned Nairn station data.
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+Nairn <- read_csv("Nairn.csv")
+```
+
+```{r}
+head(Nairn, 5)
+```
+
+The data from weather stations consists of 7 variables as seen in Table 1. These are year(yyyy), month(mm), mean daily maximum temperature (tmax_degC), mean daily minimum temperature(tmin_degC), days of air frost (af_days), total rainfall(rain_mm) and total sunshine duration (sun_hours). 
+
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+####################################################### 2. Armagh ###################################################
+rm(list = ls())
+
+#Downloading the Armagh data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/armaghdata.txt", "Armagh_raw.txt")
+
+#Reading the data
+(Armagh_txt = readLines("Armagh_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Armagh_txt <-  Armagh_txt[6: length(Armagh_txt)]
+Armagh_txt <-  Armagh_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Armagh_txt)
+Armagh_txt <- Armagh_txt[!p_data]
+
+#spliting the text 
+Sep_Armagh <- strsplit(Armagh_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Armagh)){
+  row_i <- Sep_Armagh[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Armagh.csv", sep = ",", row.names = FALSE)
+
+
+
+
+
+########################################################### 3. Aberporth #######################################################
+
+rm(list = ls())
+
+#Downloading the Aberporth data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/aberporthdata.txt", "Aberporth_raw.txt")
+
+#Reading the data
+(Aberporth_txt = readLines("Aberporth_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Aberporth_txt <-  Aberporth_txt[6: length(Aberporth_txt)]
+Aberporth_txt <-  Aberporth_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Aberporth_txt)
+Aberporth_txt <- Aberporth_txt[!p_data]
+
+#spliting the text 
+Sep_Aberporth <- strsplit(Aberporth_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Aberporth)){
+  row_i <- Sep_Aberporth[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Aberporth.csv", sep = ",", row.names = FALSE)
+
+########################################### 4. Ballypatrick Forest #######################################################
+
+rm(list = ls())
+
+#Downloading the Ballypatrick Forest data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/ballypatrickdata.txt", "Ballypatrick_raw.txt")
+
+
+#Reading the data
+(Ballypatrick_txt = readLines("Ballypatrick_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Ballypatrick_txt <- Ballypatrick_txt[6:length(Ballypatrick_txt)]
+Ballypatrick_txt <-  Ballypatrick_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Ballypatrick_txt)
+Ballypatrick_txt <- Ballypatrick_txt[!p_data]
+
+#spliting the text 
+Sep_Ballypatrick <- strsplit(Ballypatrick_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Ballypatrick)){
+  row_i <- Sep_Ballypatrick[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Ballypatrick.csv", sep = ",", row.names = FALSE)
+
+
+########################################################## 5. Bradford #######################################################
+
+rm(list = ls())
+
+#Downloading the Bradford data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/bradforddata.txt", "Bradford_raw.txt")
+
+#Reading the data
+(Bradford_txt = readLines("Bradford_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Bradford_txt <- Bradford_txt[6:length(Bradford_txt)]
+Bradford_txt <-  Bradford_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Bradford_txt)
+Bradford_txt <- Bradford_txt[!p_data]
+
+#spliting the text 
+Sep_Bradford <- strsplit(Bradford_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Bradford)){
+  row_i <- Sep_Bradford[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Bradford.csv", sep = ",", row.names = FALSE)
+
+
+
+########################################################### 6. Braemar #######################################################
+
+rm(list = ls())
+
+#Downloading the Braemar data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/braemardata.txt", "Braemar_raw.txt")
+
+#Reading the data
+(Braemar_txt = readLines("Braemar_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Braemar_txt <- Braemar_txt[7:length(Braemar_txt)]
+Braemar_txt <-  Braemar_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Braemar_txt)
+Braemar_txt <- Braemar_txt[!p_data]
+
+#spliting the text 
+Sep_Braemar <- strsplit(Braemar_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Braemar)){
+  row_i <- Sep_Braemar[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Braemar.csv", sep = ",", row.names = FALSE)
+
+
+
+########################################################### 7. Camborne #######################################################
+
+rm(list = ls())
+
+#Downloading the Camborne data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/cambornedata.txt", "Camborne_raw.txt")
+
+#Reading the data
+(Camborne_txt = readLines("Camborne_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Camborne_txt <- Camborne_txt[6:length(Camborne_txt)]
+Camborne_txt <- Camborne_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Camborne_txt)
+Camborne_txt <- Camborne_txt[!p_data]
+
+#spliting the text 
+Sep_Camborne <- strsplit(Camborne_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Camborne)){
+  row_i <- Sep_Camborne[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Camborne.csv", sep = ",", row.names = FALSE)
+
+
+################################################### 8. Cambridge NIAB #######################################################
+
+rm(list = ls())
+
+#Downloading the Cambridge NIAB data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/cambridgedata.txt", "Cambridge_raw.txt")
+
+#Reading the data
+(Cambridge_txt = readLines("Cambridge_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Cambridge_txt <- Cambridge_txt[6:length(Cambridge_txt)]
+Cambridge_txt <- Cambridge_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Cambridge_txt)
+Cambridge_txt <- Cambridge_txt[!p_data]
+
+#spliting the text 
+Sep_Cambridge <- strsplit(Cambridge_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Cambridge)){
+  row_i <- Sep_Cambridge[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Cambridge.csv", sep = ",", row.names = FALSE)
+
+
+###################################################### 9. Cardiff Bute Park #####################################################
+
+rm(list = ls())
+
+#Downloading the Cardiff Bute Park data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/cardiffdata.txt", "Cardiff_raw.txt")
+
+#Reading the data
+(Cardiff_txt = readLines("Cardiff_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Cardiff_txt <-Cardiff_txt[6:length(Cardiff_txt)]
+Cardiff_txt <- Cardiff_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Cardiff_txt)
+Cardiff_txt <- Cardiff_txt[!p_data]
+
+#spliting the text 
+Sep_Cardiff <- strsplit(Cardiff_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Cardiff)){
+  row_i <- Sep_Cardiff[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Cardiff.csv", sep = ",", row.names = FALSE)
+
+
+########################################################### 10. Chivenor #######################################################
+
+rm(list = ls())
+
+#Downloading the Chivenor data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/chivenordata.txt", "Chivenor_raw.txt")
+
+#Reading the data
+(Chivenor_txt = readLines("Chivenor_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Chivenor_txt <-Chivenor_txt[6:length(Chivenor_txt)]
+Chivenor_txt <- Chivenor_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Chivenor_txt)
+Chivenor_txt <-Chivenor_txt[!p_data]
+
+#spliting the text 
+Sep_Chivenor<- strsplit(Chivenor_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Chivenor)){
+  row_i <- Sep_Chivenor[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Chivenor.csv", sep = ",", row.names = FALSE)
+
+
+######################################################11. Cwmystwyth #######################################################
+
+rm(list = ls())
+
+#Downloading the Cwmystwyth data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/cwmystwythdata.txt", "Cwmystwyth_raw.txt")
+
+#Reading the data
+(Cwmystwyth_txt = readLines("Cwmystwyth_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Cwmystwyth_txt <-Cwmystwyth_txt[6:length(Cwmystwyth_txt)]
+Cwmystwyth_txt <- Cwmystwyth_txt[-2]
+Cwmystwyth_txt <- Cwmystwyth_txt[-620]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Cwmystwyth_txt)
+Cwmystwyth_txt <-Cwmystwyth_txt[!p_data]
+
+#spliting the text 
+Sep_Cwmystwyth<- strsplit(Cwmystwyth_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Cwmystwyth)){
+  row_i <- Sep_Cwmystwyth[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Cwmystwyth.csv", sep = ",", row.names = FALSE)
+
+
+################################################ 12. Dunstaffnage #######################################################
+rm(list = ls())
+
+#Downloading the Dunstaffnage data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/dunstaffnagedata.txt", "Dunstaffnage_raw.txt")
+
+
+#Reading the data
+(Dunstaffnage_txt = readLines("Dunstaffnage_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Dunstaffnage_txt <-Dunstaffnage_txt[6:length(Dunstaffnage_txt)]
+Dunstaffnage_txt <- Dunstaffnage_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Dunstaffnage_txt)
+Dunstaffnage_txt <-Dunstaffnage_txt[!p_data]
+
+#spliting the text 
+Sep_Dunstaffnage <- strsplit(Dunstaffnage_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Dunstaffnage)){
+  row_i <- Sep_Dunstaffnage[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Dunstaffnage.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 13. Durham #######################################################
+rm(list = ls())
+
+#Downloading the Durham data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/durhamdata.txt", "Durham_raw.txt")
+
+
+#Reading the data
+(Durham_txt = readLines("Durham_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Durham_txt <-Durham_txt[6:length(Durham_txt)]
+Durham_txt <- Durham_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Durham_txt)
+Durham_txt <-Durham_txt[!p_data]
+
+#spliting the text 
+Sep_Durham <- strsplit(Durham_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Durham)){
+  row_i <- Sep_Durham[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Durham.csv", sep = ",", row.names = FALSE)
+
+####################################################### 14. Eastbourne #######################################################
+
+rm(list = ls())
+
+#Downloading the Eastbourne data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/eastbournedata.txt", "Eastbourne_raw.txt")
+
+#Reading the data
+(Eastbourne_txt = readLines("Eastbourne_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Eastbourne_txt <-Eastbourne_txt[6:length(Eastbourne_txt)]
+Eastbourne_txt <- Eastbourne_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Eastbourne_txt)
+Eastbourne_txt <-Eastbourne_txt[!p_data]
+
+#spliting the text 
+Sep_Eastbourne <- strsplit(Eastbourne_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Eastbourne)){
+  row_i <- Sep_Eastbourne[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Eastbourne.csv", sep = ",", row.names = FALSE)
+
+####################################################### 15. Eskdalemuir #######################################################
+
+
+rm(list = ls())
+
+#Downloading the Eskdalemuir data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/eskdalemuirdata.txt", "Eskdalemuir_raw.txt")
+
+
+#Reading the data
+(Eskdalemuir_txt = readLines("Eskdalemuir_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Eskdalemuir_txt <-Eskdalemuir_txt[6:length(Eskdalemuir_txt)]
+Eskdalemuir_txt <- Eskdalemuir_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Eskdalemuir_txt)
+Eskdalemuir_txt <-Eskdalemuir_txt[!p_data]
+
+#spliting the text 
+Sep_Eskdalemuir <- strsplit(Eskdalemuir_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Eskdalemuir)){
+  row_i <- Sep_Eskdalemuir[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Eskdalemuir.csv", sep = ",", row.names = FALSE)
+
+
+###################################16. Heathrow (London Airport) ###################################
+
+
+rm(list = ls())
+
+#Downloading the Heathrow (London Airport) data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/heathrowdata.txt", "Heathrow_raw.txt")
+
+#Reading the data
+(Heathrow_txt = readLines("Heathrow_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Heathrow_txt <-Heathrow_txt[6:length(Heathrow_txt)]
+Heathrow_txt <- Heathrow_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Heathrow_txt)
+Heathrow_txt <-Heathrow_txt[!p_data]
+
+#spliting the text 
+Sep_Heathrow <- strsplit(Heathrow_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Heathrow)){
+  row_i <- Sep_Heathrow[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Heathrow.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 17. Hurn #######################################################
+
+rm(list = ls())
+
+#Downloading the Hurn data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/hurndata.txt", "Hurn_raw.txt")
+
+
+#Reading the data
+(Hurn_txt = readLines("Hurn_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Hurn_txt <-Hurn_txt[6:length(Hurn_txt)]
+Hurn_txt <- Hurn_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Hurn_txt)
+Hurn_txt <-Hurn_txt[!p_data]
+
+#spliting the text 
+Sep_Hurn<- strsplit(Hurn_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Hurn)){
+  row_i <- Sep_Hurn[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Hurn.csv", sep = ",", row.names = FALSE)
+
+####################################################### 18. Lerwick #######################################################
+
+rm(list = ls())
+
+#Downloading the Lerwick data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/lerwickdata.txt", "Lerwick_raw.txt")
+
+
+#Reading the data
+(Lerwick_txt = readLines("Lerwick_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Lerwick_txt <-Lerwick_txt[6:length(Lerwick_txt)]
+Lerwick_txt <- Lerwick_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Lerwick_txt)
+Lerwick_txt <-Lerwick_txt[!p_data]
+
+#spliting the text 
+Sep_Lerwick<- strsplit(Lerwick_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Lerwick)){
+  row_i <- Sep_Lerwick[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Lerwick.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 19. Leuchars #######################################################
+
+rm(list = ls())
+
+#Downloading the Leuchars data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/leucharsdata.txt", "Leuchars_raw.txt")
+
+
+#Reading the data
+(Leuchars_txt = readLines("Leuchars_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Leuchars_txt <-Leuchars_txt[6:length(Leuchars_txt)]
+Leuchars_txt <- Leuchars_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Leuchars_txt)
+Leuchars_txt <-Leuchars_txt[!p_data]
+
+#spliting the text 
+Sep_Leuchars <- strsplit(Leuchars_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Leuchars)){
+  row_i <- Sep_Leuchars[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Leuchars.csv", sep = ",", row.names = FALSE)
+
+
+########################################### 20. Lowestoft / Lowestoft Monckton Ave ######################################
+
+rm(list = ls())
+
+#Downloading the Lowestoft data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/lowestoftdata.txt", "Lowestoft_raw.txt")
+
+
+#Reading the data
+(Lowestoft_txt = readLines("Lowestoft_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Lowestoft_txt <-Lowestoft_txt[7:length(Lowestoft_txt)]
+Lowestoft_txt <- Lowestoft_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Lowestoft_txt)
+Lowestoft_txt <-Lowestoft_txt[!p_data]
+
+#spliting the text 
+Sep_Lowestoft <- strsplit(Lowestoft_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Lowestoft)){
+  row_i <- Sep_Lowestoft[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Lowestoft.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 21. Manston #######################################################
+rm(list = ls())
+
+#Downloading the Manston data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/manstondata.txt", "Manston_raw.txt")
+
+
+
+#Reading the data
+(Manston_txt = readLines("Manston_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Manston_txt <-Manston_txt[6:length(Manston_txt)]
+Manston_txt <- Manston_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Manston_txt)
+Manston_txt <-Manston_txt[!p_data]
+
+#spliting the text 
+Sep_Manston <- strsplit(Manston_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Manston)){
+  row_i <- Sep_Manston[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Manston.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 22. Newton Rigg #######################################################
+rm(list = ls())
+
+#Downloading the Newton Rigg data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/newtonriggdata.txt", "Newton_raw.txt")
+
+#Reading the data
+(Newton_txt = readLines("Newton_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Newton_txt <-Newton_txt[6:length(Newton_txt)]
+Newton_txt <- Newton_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Newton_txt)
+Newton_txt <-Newton_txt[!p_data]
+
+#spliting the text 
+Sep_Newton <- strsplit(Newton_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Newton)){
+  row_i <- Sep_Newton[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Newton.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 23. Oxford #######################################################
+
+rm(list = ls())
+
+#Downloading the Oxford data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/oxforddata.txt", "Oxford_raw.txt")
+
+#Reading the data
+(Oxford_txt = readLines("Oxford_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Oxford_txt <-Oxford_txt[6:length(Oxford_txt)]
+Oxford_txt <- Oxford_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Oxford_txt)
+Oxford_txt <-Oxford_txt[!p_data]
+
+#spliting the text 
+Sep_Oxford <- strsplit(Oxford_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Oxford)){
+  row_i <- Sep_Oxford[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Oxford.csv", sep = ",", row.names = FALSE)
+
+####################################################### 24. Paisley #######################################################
+
+rm(list = ls())
+
+#Downloading the Paisley data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/paisleydata.txt", "Paisley_raw.txt")
+
+#Reading the data
+(Paisley_txt = readLines("Paisley_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Paisley_txt <-Paisley_txt[6:length(Paisley_txt)]
+Paisley_txt <- Paisley_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Paisley_txt)
+Paisley_txt <-Paisley_txt[!p_data]
+
+#spliting the text 
+Sep_Paisley<- strsplit(Paisley_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Paisley)){
+  row_i <- Sep_Paisley[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Paisley.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 25. Ringway #######################################################
+
+rm(list = ls())
+
+#Downloading the Ringway data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/ringwaydata.txt", "Ringway_raw.txt")
+
+#Reading the data
+(Ringway_txt = readLines("Ringway_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Ringway_txt <-Ringway_txt[6:length(Ringway_txt)]
+Ringway_txt <- Ringway_txt[-2]
+Ringway_txt <- Ringway_txt[-708]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Ringway_txt)
+Ringway_txt <-Ringway_txt[!p_data]
+
+#spliting the text 
+Sep_Ringway <- strsplit(Ringway_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Ringway)){
+  row_i <- Sep_Ringway[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Ringway.csv", sep = ",", row.names = FALSE)
+
+####################################################### 26. Ross-On-Wye #######################################################
+rm(list = ls())
+
+#Downloading the Ross-On-Wye data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/rossonwyedata.txt", "Ross_raw.txt")
+
+
+#Reading the data
+(Ross_txt = readLines("Ross_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Ross_txt <-Ross_txt[6:length(Ross_txt)]
+Ross_txt <- Ross_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Ross_txt)
+Ross_txt <-Ross_txt[!p_data]
+
+#spliting the text 
+Sep_Ross <- strsplit(Ross_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Ross)){
+  row_i <- Sep_Ross[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Ross.csv", sep = ",", row.names = FALSE)
+
+####################################################### 27. Shawbury #######################################################
+
+rm(list = ls())
+
+#Downloading the Shawbury data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/shawburydata.txt", "Shawbury_raw.txt")
+
+
+#Reading the data
+(Shawbury_txt = readLines("Shawbury_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Shawbury_txt <-Shawbury_txt[6:length(Shawbury_txt)]
+Shawbury_txt <- Shawbury_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Shawbury_txt)
+Shawbury_txt <-Shawbury_txt[!p_data]
+
+#spliting the text 
+Sep_Shawbury <- strsplit(Shawbury_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Shawbury)){
+  row_i <- Sep_Shawbury[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Shawbury.csv", sep = ",", row.names = FALSE)
+
+####################################################### 28 Sheffield #######################################################
+
+rm(list = ls())
+
+#Downloading the Sheffield data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/sheffielddata.txt", "Sheffield_raw.txt")
+
+#Reading the data
+(Sheffield_txt = readLines("Sheffield_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Sheffield_txt <-Sheffield_txt[6:length(Sheffield_txt)]
+Sheffield_txt <- Sheffield_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Sheffield_txt)
+Sheffield_txt <-Sheffield_txt[!p_data]
+
+#spliting the text 
+Sep_Sheffield <- strsplit(Sheffield_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Sheffield)){
+  row_i <- Sep_Sheffield[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Sheffield.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 29. Southampton #######################################################
+
+rm(list = ls())
+
+#Downloading the Southampton data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/southamptondata.txt", "Southampton_raw.txt")
+
+#Reading the data
+(Southampton_txt = readLines("Southampton_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Southampton_txt <-Southampton_txt[7:length(Southampton_txt)]
+Southampton_txt <- Southampton_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Southampton_txt)
+Southampton_txt <-Southampton_txt[!p_data]
+
+#spliting the text 
+Sep_Southampton <- strsplit(Southampton_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Southampton)){
+  row_i <- Sep_Southampton[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Southampton.csv", sep = ",", row.names = FALSE)
+
+####################################################### 30. Stornoway #######################################################
+
+rm(list = ls())
+
+#Downloading the Stornoway data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/stornowaydata.txt", "Stornoway_raw.txt")
+
+#Reading the data
+(Stornoway_txt = readLines("Stornoway_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Stornoway_txt <-Stornoway_txt[6:length(Stornoway_txt)]
+Stornoway_txt <- Stornoway_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Stornoway_txt)
+Stornoway_txt <-Stornoway_txt[!p_data]
+
+#spliting the text 
+Sep_Stornoway <- strsplit(Stornoway_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Stornoway)){
+  row_i <- Sep_Stornoway[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Stornoway.csv", sep = ",", row.names = FALSE)
+
+
+################################################# 31. Sutton Bonington #######################################################
+
+rm(list = ls())
+
+#Downloading the Sutton Bonington data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/suttonboningtondata.txt", "Sutton_raw.txt")
+
+#Reading the data
+(Sutton_txt = readLines("Sutton_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Sutton_txt <-Sutton_txt[6:length(Sutton_txt)]
+Sutton_txt <- Sutton_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Sutton_txt)
+Sutton_txt <-Sutton_txt[!p_data]
+
+#spliting the text 
+Sep_Sutton <- strsplit(Sutton_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Sutton)){
+  row_i <- Sep_Sutton[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Sutton.csv", sep = ",", row.names = FALSE)
+
+
+################################################### 32. Tiree Bonington ##################################################
+rm(list = ls())
+
+#Downloading the Tiree Bonington data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/tireedata.txt", "Tiree_raw.txt")
+
+
+#Reading the data
+(Tiree_txt = readLines("Tiree_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Tiree_txt <-Tiree_txt[6:length(Tiree_txt)]
+Tiree_txt <- Tiree_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Tiree_txt)
+Tiree_txt <-Tiree_txt[!p_data]
+
+#spliting the text 
+Sep_Tiree <- strsplit(Tiree_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Tiree)){
+  row_i <- Sep_Tiree[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Tiree.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 33. Valley #######################################################
+
+rm(list = ls())
+
+#Downloading the Valley data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/valleydata.txt", "Valley_raw.txt")
+
+
+#Reading the data
+(Valley_txt = readLines("Valley_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Valley_txt <-Valley_txt[6:length(Valley_txt)]
+Valley_txt <- Valley_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Valley_txt)
+Valley_txt <-Valley_txt[!p_data]
+
+#spliting the text 
+Sep_Valley <- strsplit(Valley_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Valley)){
+  row_i <- Sep_Valley[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Valley.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 34. Waddington #######################################################
+rm(list = ls())
+
+#Downloading the Waddington data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/waddingtondata.txt", "Waddington_raw.txt")
+
+
+#Reading the data
+(Waddington_txt = readLines("Waddington_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Waddington_txt <-Waddington_txt[6:length(Waddington_txt)]
+Waddington_txt <- Waddington_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Waddington_txt)
+Waddington_txt <-Waddington_txt[!p_data]
+
+#spliting the text 
+Sep_Waddington <- strsplit(Waddington_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Waddington)){
+  row_i <- Sep_Waddington[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Waddington.csv", sep = ",", row.names = FALSE)
+
+####################################################### 35. Whitby #######################################################
+rm(list = ls())
+
+#Downloading the Tiree Bonington data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/whitbydata.txt", " Whitby_raw.txt")
+
+
+#Reading the data
+(Data_txt = readLines(" Whitby_raw.txt"))
+
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Data_txt_1 <- c(Data_txt[7: length(Data_txt)]) #removing first comments 
+Data_txt_2 <- c(Data_txt_1[-2]) #removing units
+
+# Removing Provisional data beacuse it has not gone through quality control
+provisional_data = grepl("Provisional", Data_txt_2)
+Data_txt_no_provisional <-Data_txt_2[!provisional_data]
+Data_txt_no_provisional_essential <- Data_txt_no_provisional[-(2:173)]# removed the incomplete data that had no sunlight hours added
+
+
+#spliting the text 
+Data_txt_split <- strsplit(Data_txt_no_provisional_essential, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Data_txt_split)){
+  row_i <- Data_txt_split[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+
+af_days  <- gsub("[#,*,$]", " ", af_days)
+
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removving the first row that contain column names. It has been helpful to this stage
+Data_f_data <- Data_f_data[-1,]
+
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Whitby.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 36. Wick Airport #######################################################
+rm(list = ls())
+
+#Downloading the Wick Airport data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/wickairportdata.txt", "Wick_raw.txt")
+
+#Reading the data
+(Wick_txt = readLines("Wick_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Wick_txt <-Wick_txt[6:length(Wick_txt)]
+Wick_txt <- Wick_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Wick_txt)
+Wick_txt <-Wick_txt[!p_data]
+
+#spliting the text 
+Sep_Wick <- strsplit(Wick_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Wick)){
+  row_i <- Sep_Wick[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Wick.csv", sep = ",", row.names = FALSE)
+
+
+####################################################### 37. Yeovilton #######################################################
+rm(list = ls())
+
+#Downloading the Yeovilton data
+download.file("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/yeoviltondata.txt", "Yeovilton_raw.txt")
+
+#Reading the data
+(Yeovilton_txt = readLines("Yeovilton_raw.txt"))
+
+##### Cleanig the data #####
+#removing commmends, can always find them in the raw document
+Yeovilton_txt <-Yeovilton_txt[6:length(Yeovilton_txt)]
+Yeovilton_txt <- Yeovilton_txt[-2]
+
+
+# Removing Provisional data beacuse it has not gone through quality control
+p_data = grepl("Provisional", Yeovilton_txt)
+Yeovilton_txt <-Yeovilton_txt[!p_data]
+
+#spliting the text 
+Sep_Yeovilton <- strsplit(Yeovilton_txt, "\\s+")
+
+
+# a loop to pick the values for the 7 columns and append them in an intially empty list
+yyyy <- c()
+mm <- c()
+tmax_degC <- c()
+tmin_degC <- c()
+af_days <- c()
+rain_mm <- c()
+sun_hours <- c()
+
+for (i in 1:length(Sep_Yeovilton)){
+  row_i <- Sep_Yeovilton[[i]]
+  
+  year <- row_i[2]
+  yyyy <- c(yyyy, year) 
+  
+  month <- row_i[3]
+  mm <- c(mm, month)
+  
+  tmax <- row_i[4]
+  tmax_degC <- c(tmax_degC, tmax)
+  
+  tmin <- row_i[5]
+  tmin_degC <- c(tmin_degC, tmin)
+  
+  af <- row_i[6]
+  af_days<- c(af_days, af)
+  
+  rain <- row_i[7]
+  rain_mm <- c(rain_mm, rain)
+  
+  sun <- row_i[8]
+  sun_hours <- c(sun_hours, sun)
+}
+
+# removing extra charactors such as $ and #
+tmax_degC  <- gsub("[#,*,$]", " ", tmax_degC) 
+tmin_degC  <- gsub("[#,*,$]", " ", tmin_degC)
+af_days  <- gsub("[#,*,$]", " ", af_days)
+rain_mm  <- gsub("[#,*,$]", " ", rain_mm)
+sun_hours  <- gsub("[#,*,$, all]", " ", sun_hours)
+
+#### the cleaned data set ###
+Data_f_data <- data.frame( yyyy, mm, tmax_degC, tmin_degC, af_days, rain_mm, sun_hours, stringsAsFactors = FALSE)
+
+#removing the first column with column names, it is no longer needed. 
+Data_f_data <- Data_f_data[-1,]
+
+#Replacing the empty spots with NA
+Data_f_data[Data_f_data == '---'] <- NA 
+
+#converting the type of columns to numeric 
+cols_names <- c("yyyy", "mm", "tmax_degC", "tmin_degC", "af_days", "rain_mm", "sun_hours")
+Data_f_data[cols_names] <- sapply(Data_f_data[cols_names], as.numeric)
+sapply(Data_f_data, class)
+
+#Saving the data as a csv file for future works 
+write.table(Data_f_data, file = "Yeovilton.csv", sep = ",", row.names = FALSE)
+```
+
+\newpage
+
+## PART 1 : Clustering The Stations Based On Similar Weather 
+
+#### Aim
+
+The aim of part 1 is to use a clustering algorithm to see if the weather stations can be clustered into groups that have “similar” weather. The k-means clustering algorithm was used in this case. This algorithm was chosen because of its simplicity and potential for scalability. 
+
+#### A summary of the K-mean clustering algorithm
+
+The k-means clustering algorithm is a type of unsupervised learning. That means, it is used to find clusters of similar data points within unlabeled datasets. To generate those clusters, on has to select the value for k. This represents the number of clusters that can be expected from the dataset. K is known as the number of centroids. Once k is selected, it is assigned random values/coordinates within the limits of the data. The eucledian distance between each centroid and each data point is calculated. Each data point is assigned to the closest centroid. The value/cordinates for each centroid are updated by averaging the data points assigened to each, and the whole process is iterated until the values of the centroids no longer change (have stabilized). 
+
+k-mean clustering makes 3 assumptions that may affect its performance if they are not met. These are: 
+
+1. Each variable's variance has a spherical distribution.
+2. Equal variance for all variables. 
+3. The probability of each data point to end up any one of the k clusters is the same. 
+
+While our data may not have the ideal size and stracture that is required to develop a high perfoming clustering model, k-means clustering performed well. 
+
+#### Approach
+
+The majority of clean weather station data ended in 2018. An average of the most recent 5 years for each variable was used in k-means clustering. Upon examining the data,  it was observed that most weather stations were missing the total sunshine duration data. As such, that variable was not used in the analysis. Table 2 shows the first 5 rows of the data prepared for use in the k-means clustering algorithm. It contains 5 variables : average maximum temperature (tmax_av_values), average minimum temperature(tmin_av_values), average air frost days(af_days_av_values) and average rainfall(rain_mm_av_values). The station name was included as the row name. This was done to eventually track which stations were grouped together. 
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+library(tidyverse)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra)
+library(gridExtra)
+
+
+########## Preparing the data to so that the 5 year average of minimum temperature(ºC), maximum temperature (ºC), days of air frost (af days) and rainfall (mm)
+
+
+station_names_cvs <- c("Aberporth.csv","Armagh.csv", "Ballypatrick.csv", "Bradford.csv", "Braemar.csv", "Camborne.csv", "Cambridge.csv", "Cardiff.csv", "Chivenor.csv", "Cwmystwyth.csv", "Dunstaffnage.csv", "Durham.csv", "Eastbourne.csv", "Eskdalemuir.csv", "Heathrow.csv", "Hurn.csv", "Lerwick.csv", "Leuchars.csv", "Lowestoft.csv", "Manston.csv", "Nairn.csv", "Newton.csv", "Oxford.csv", "Paisley.csv", "Ringway.csv", "Ross.csv", "Shawbury.csv", "Sheffield.csv", "Southampton.csv", "Stornoway.csv", "Sutton.csv", "Tiree.csv", "Valley.csv", "Waddington.csv", "Whitby.csv", "Wick.csv", "Yeovilton.csv")
+
+station_names <- c("aberporth", "armagh", "ballypatrick", "bradford", "braemar", "camborne", "cambridge", "cardiff", "chivenor", "cwmystwyth", "dunstaffnage", "durham", "eastbourne", "eskdalemuir", "heathrow", "hurn", "lerwick", "leuchars", "lowestoft", "manston", "nairn", "newtonrigg", "oxford", "paisley", "ringway", "rossonwye", "shawbury", "sheffield", "southampton", "stornoway", "suttonbonington", "tiree", "valley", "waddington", "whitby", "wickairport", "yeovilton")
+
+
+# Making a loop to iterate through the '.cvs' files developed in part 0. It will then compute the average value for the 4 variables under consideration. These are tmax, tmin, af_days and rain_mm
+# The average will then be appended to its respective list which is initially empty
+
+#empty lists to for initializing
+tmax_av_values <- c() 
+tmin_av_values <- c()
+af_days_av_values <- c()
+rain_mm_av_values <- c()
+
+#loop to calculate the average for each varible and put it in the above lists
+for ( i in station_names_cvs) {
+  
+  data <- read_csv(i)
+  
+  tmax_degC <- data$tmax_degC
+  tmax_5yr_av <- mean(tail(tmax_degC, 60), na.rm = TRUE)
+  tmax_av_values <- c(tmax_av_values, tmax_5yr_av)
+  
+  tmin_degC <- data$tmin_degC
+  tmin_5yr_av <- mean(tail(tmin_degC, 60), na.rm = TRUE)
+  tmin_av_values <- c(tmin_av_values, tmin_5yr_av)
+  
+  af_days <- data$af_days
+  af_days_5yr_av <- mean(tail(af_days, 60), na.rm = TRUE)
+  af_days_av_values <- c(af_days_av_values,af_days_5yr_av )
+  
+  rain <- data$rain_mm
+  rain_5yr_av <- mean(tail(rain, 60), na.rm = TRUE)
+  rain_mm_av_values <- c(rain_mm_av_values, rain_5yr_av)
+  
+}
+
+#creating a data frame with all the average values computed by the for loop. 
+average_values <- data.frame( tmax_av_values,tmin_av_values,af_days_av_values, rain_mm_av_values)
+
+#naming the rows using the station names
+row.names(average_values) <- station_names
+data_for_part1 <- average_values
+
+
+#downloading the data set as a 'data_for_part1.csv' file for further use
+write.table(data_for_part1, file = "data_for_part1.csv", sep = ",", row.names = FALSE)
+
+```
+
+##### Table 2: The first 5 rows of data prepared for the k-means clustering algorithm
+
+```{r}
+head(data_for_part1, 5)
+```
+
+The data displayed on table 2 shows 4 features with different units of measurement. Therefore, they are not comparable in their orginal state. The data was scaled to give equal weight to each variable during clustering. 
+
+##### Table 3: The first 5 rows of scaled data for k-means clustering.
+
+```{r}
+data_for_part1_scaled <- scale(data_for_part1) #scaling the data
+head(data_for_part1_scaled, 6)
+```
+
+#### Selecting the value for k (number of clusters) using the Elbow method
+
+##### Figure 2: Total Within Sum of Squares (wws) vs the Number of Clusters (k)
+
+```{r}
+set.seed(123)
+fviz_nbclust(data_for_part1_scaled, kmeans, method = "wss")
+```
+There are various ways to find the optimum k for k-means clustering. The Elbow Method was deemed adequate for this analysis. It is implemented by calculating and ploting Total Within Sum of Squares (wws) against the Number of Clusters (k).  The plot resembles an arm bend at the elbow. The aim is to find the value of k where the graph bends. In this case, k=4 as seen in fig.2. 
+
+#### Implementing the k-means clustering algorithm
+                 
+The k-means algorithm was implemented using a k value of 4 and was iterated until the centroids were no longer changing. The results are presented in Figure 3. 
+
+##### Figure 3: Results of k-means clustering
+
+```{r}
+
+k4<- kmeans(data_for_part1_scaled, centers = 4, nstart = 100)
+
+```
+
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+library(gridExtra)
+
+plot1 <- fviz_cluster(k4, data = data_for_part1_scaled, main = "Cluster plot with names of stations")
+plot2 <- fviz_cluster(k4,geom = "plot", data = data_for_part1_scaled, main = "Cluster plot with only data points")
+```
+
+```{r}
+grid.arrange(plot1, plot2, nrow = 2)
+```
+
+The clusters plotted above were examined to find the stations that were grouped together. The first polot in Figure 3 was useful at determining were each station was assigned. 
+
+a. cluster 1 had 5 stations :
+lerwick, tiree, dunstaffnage, ballypatrick,stornoway
+
+b. cluster 2 had 18 stations :
+aberpoth, camborne, valley, chivenor, eastbourne, cardiff, sheffield, manston, lowestoft, whitby,southampton, heathrow, waddington, rossonwye, oxford, yeovilton, cambridge, suttonbonington
+
+c. cluster 3 had 11 stations :
+paisley, wickariport, newtonrigg, armagh, nairn, leauchars, shawbury, durham, bradford, harn,ringway
+  
+d. cluster 4 had 3 stations:
+braemar, cwmystwyth,eskdalemuir 
+
+The stations in each cluster were marked on the map to see if there are any observable patterns produced by the clustering algorithm. Figure 1 below depicts the UK map with the clusters super imposed to it. The colors of the culsters follows the color code in Figure 3. 
+
+\newpage
+
+```{r Figure 1, echo=FALSE, fig.cap=" Map of the UK and the clustering results.", out.height='90%', out.width='90%'}
+knitr::include_graphics("UK_k_means.png")
+```
+
+\newpage
+
+The positions of the 4 centroids computed by averaging the data from stations assigned to them is presented in table 4.
+
+##### Table 4: The data for each centroids (k) 
+```{r}
+data_for_part1 %>% mutate(Cluster = k4$cluster) %>% group_by(Cluster) %>%
+summarise_all("mean")
+```
+
+
+#### Conclusion
+
+The k-means clustering of the weather stations based on the similarity of their weather performed fairly well. The cluster plots in Figure 2 show clear clusters that are not overlapping. Futhermore, the location of members of each cluster on the Uk map shows a pattern (Figure 1). Cluster 4 members are predominantely locates on the right bottom corner of the map while cluster 3 members are found at the top of the map. However, figure 1 shows that cluster 3 stations are burried within regions dominated by other clusters. Table 4 shows that the cluster 3 centroid was different from each of the other clusters on at least 2 of the feaures. Thus, it is possible that although these stations are located in regions that a predominantly populated by members of other clusters, they still have their unique set of features shared amoung themselves only. 
+
+From the results and visualizations generated above, I believe the weather stations can and were clustered well, based on the similarities of their weather. 
+
+\newpage
+
+
+## PART 2 : Classifying the Stations Based on Weather Information
+
+#### Aim 
+
+The aim of part 2 is to build a k Nearest Neighbour (kNN) classifier that can predict the region where each station belongs based on its weather infomation. There are three regions: north, central, and south. These regions are not standard, they were developed purely for this analysis only. 
+
+#### K Nearest Neighbour (KNN) Summary 
+
+The kNN algorithm is a supervised learning algorithm. Thus, it uses labeled data to establish relationships between data points based other features. When given a new set of features that were not seen in training, the algorithm will use what it "learned" to correctly predict the class of the data points represented by those features. 
+
+kNN is a relatively simple algorithm. It stores the labeled examples provided during training. When a new set of variables is provided that need to be labeled, kNN will assign this new case to the class where there are most of its closest neighbors (most similar data from the training examples). The number neighbors are consider when predicting the class of a new case is known as k. 
+
+#### Approach 
+
+Firstly, the UK was divided into 3 regions using latitude. The most northern and most southern latitudes were provided. Using that information, three ranges of latitude were developed: north, central, and south. Each weather station was then labeled as either north or central or south,  based on its latitude's position, relative to the formulated ranges. 
+
+It is widely known that latitude is inversely related to temperature. Therefore, I believed that the weather variable in this data set that is most likely to develop a high performing kNN classifier is temperature data. Consequesntly, only the maximum and minimum temperature variables were used in this analysis. Table 5 below shows the first few rows of the data prepared for this analysis.
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+#### Libraries used 
+
+library(gmodels)
+library(class)
+
+##### Developing the boundaries for the 3 regions (north, central and south) using lattitude data
+
+# This data on the most north and most south lattitude was made publicly available. 
+most_north_lat <- 60.9
+most_south_lat <- 49.9
+number_parts <- 3
+
+# The unit lattitude difference between the 3 regions
+lat_units_between_regions <- (most_north_lat - most_south_lat)/number_parts
+
+north_region_boundery <- most_north_lat - lat_units_between_regions
+paste0("The north boundary is between lattitudes ", most_north_lat, " and ", north_region_boundery)
+
+
+central_region_boundery <- north_region_boundery - lat_units_between_regions
+paste0("The central boundary is between lattitudes ", north_region_boundery, " and ",central_region_boundery)
+
+paste0("The south boundary is between lattitudes ", central_region_boundery, " and ",most_south_lat)
+
+
+
+
+##### Assigning each station a region using its lattitude
+
+
+station_names <- c("aberporth", "armagh", "ballypatrick", "bradford", "braemar", "camborne", "cambridge", "cardiff", "chivenor", "cwmystwyth", "dunstaffnage", "durham", "eastbourne", "eskdalemuir", "heathrow", "hurn", "lerwick", "leuchars", "lowestoft", "manston", "nairn", "newtonrigg", "oxford", "paisley", "ringway", "rossonwye", "shawbury", "sheffield", "southampton", "stornoway", "suttonbonington", "tiree", "valley", "waddington", "whitby", "wickairport", "yeovilton")
+
+# The lattitude and longitude of each station
+Aberporth <- c(52.139, -4.570)
+Armagh <- c(54.352, -6.649)
+Ballypatrick  <- c(55.181, -6.153)
+Bradford <- c(53.813, -1.772)
+Braemar <- c(57.006,-3.396)
+Camborne <- c(50.218, -5.327)
+Cambridge <- c(52.245, 0.102)
+Cardiff <- c(51.488, -3.187)
+Chivenor <- c(51.089, -4.147)
+Cwmystwyth <- c(52.358, -3.802)
+Dunstaffnage <- c(56.451, -5.439)
+Durham <- c(54.768, -1.585)
+Eastbourne <- c(50.762, 0.285)
+Eskdalemuir <- c(55.311, -3.206)
+Heathrow <- c(51.479, -0.449)
+Hurn <- c( 50.779, -1.835)
+Lerwick <- c(60.139, -1.183)
+Leuchars <- c(56.377, -2.861)
+Lowestoft <- c(52.483, 1.727)
+Manston <- c(51.346, 1.337)
+Nairn <- c(57.593, -3.821)
+Newtonrigg <- c(54.670, -2.786)
+Oxford <- c(51.761, -1.262)
+Paisley <- c(55.846, -4.430)
+Ringway <- c(53.356, -2.279)
+Ross <- c(51.911, -2.584)
+Shawbury <- c(52.794, -2.663)
+Sheffield <- c(53.381, -1.490)
+Southampton <- c(50.898, -1.408)
+Stornoway <- c(58.214, -6.318)
+Sutton <- c(52.833,-1.250)
+Tiree <- c(56.500, -6.880)
+Valley <- c(53.252, -4.535)
+Waddington <- c(53.175, -0.522)
+Whitby <- c(54.481, -0.624)
+Wick <- c(58.454, -3.088)
+Yeovilton <- c(51.006, -2.641)
+
+
+# Making a data frame for each station and its lattitude and longitude. 
+station_lattitude_longitude <- data.frame(Aberporth, Armagh, Ballypatrick, Bradford, Braemar, Camborne, Cambridge, Cardiff, Chivenor, Cwmystwyth, Dunstaffnage, Durham, Eastbourne, Eskdalemuir, Heathrow, Hurn, Lerwick, Leuchars, Lowestoft, Manston, Nairn, Newtonrigg, Oxford, Paisley, Ringway, Ross, Shawbury, Sheffield, Southampton, Stornoway, Sutton, Tiree, Valley, Waddington, Whitby, Wick, Yeovilton)
+
+#Initializing the location (region) list. 
+location <- c()
+
+#loop to separate lattitude and label each station as north or central or south
+
+for (i in station_lattitude_longitude) {
+  if (i[1] >= 57.2){
+    location <- c(location, "north")
+  } else if (i[1] >= 53.6 & i[1] < 57.2){
+    location <- c(location, "middle")
+  } else {
+    location <- c(location, "south")
+  }
+}
+
+# Data frame with the station name as the row name and the location
+station_and_location <- data.frame(location)
+row.names(station_and_location) <- station_names
+
+# Data frame with weather information and the station location information
+data_for_part1 <- read_csv("data_for_part1.csv")
+data_for_part2 <- data.frame(station_and_location, data_for_part1)
+
+#removing other variables to remain with only location, tmax and tmin
+data_for_part2 <- data_for_part2[, 1:3]
+
+# Exporting the data prepared for analysis in part 2 as "data_for_part2".
+write.table(data_for_part2, file = "data_for_part2.csv", sep = ",", row.names = FALSE)
+
+```
+
+
+##### Table 5: The first 5 rows of the data prepare for the kNN classifer
+
+```{r}
+head(data_for_part2, 5)
+```
+
+The features (predictors) used in this analysis were average maximum temperature (tmin_av_values) and average minimum temperature (tmin_av_values). The target variable is the location. Since both predictor variables are recorded using the same units, and possibly measured using the same instruments, the data will not be scaled. 
+
+
+#### Implementing the KNN classifier 
+
+Firstly, the data was sperated between a training set (31 data point) and a test set (6 datapoint). The goal was to train the kNN algorithm using the training set and then evaluate its perfomance using the test set. 
+
+To commence the building of a kNN classifier, the value for K has to be defined. There are many ways to find k. The simplest method is to find the square root of the data set size. The optimum k is often close, if not equal to that value. 
+
+Using that method, k was found to be equal to 6. This value for k was also supported by plotting the percentage accuracy of a kNN classifier vs the k value. Figure 4 below shows that k=6 achieves an accuracy percentage of up to 100%. 
+
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+# seting the training and the test sets 
+data_train <- data_for_part2[1:31,2:3]
+data_test <- data_for_part2[32:37,2:3]
+
+#the location lables for the above data
+data_train_lables <- data_for_part2[1:31,1]
+data_test_lables <- data_for_part2[32:37,1]
+
+##### Finding the optimal K value
+
+
+i=1                          # initializing the loop
+optimum_k=1                     # intitializin the loop
+
+for (i in 1:20){ 
+    knn_model <-  knn(train=data_train, test=data_test, cl=data_train_lables, k=i)
+    optimum_k[i] <- 100 * sum(data_test_lables ==  knn_model)/NROW(data_test_lables)
+    k=i  
+}
+
+
+#Plotting the value of K against the percentage accuracy to fin the optimum k value in figure 4
+```
+
+
+##### Figure 4: Percentage Accuracy vs The Value of K
+
+```{r}
+plot(optimum_k, type="b", xlab="Value of K",ylab="Percentage Accuracy")  
+```
+
+#### Training and Evaluting the KNN classifier
+
+The kNN classifier was trained using k = 6. It was then used to predict the classes for 6 new examples. The classifier performed well. It accurately predicted the classes for all of the new examples. It also had a specificity and sensitivity value of 1.
+
+##### Table 6: A confussion matrix of the predictions made by the kNN classifier. 
+
+```{r}
+
+# training the classifier
+KNN_6 <- knn(train=data_train, test=data_test, cl=data_train_lables, k=6) 
+
+#using the trained classifier to predict the results for the test sample
+CrossTable(x = data_test_lables, y = KNN_6, prop.chisq = FALSE)
+
+```
+The result observed from this classifier was perfect, perhaps too perfect to exist in the real world. Therefore, it is important to note that the data sample is very small. 
+
+\newpage
+
+## PART 3 : Does weather affects people's happiness ratings
+
+##### Aim
+
+This part aims to determine if the weather affects the average ratings of people's happiness.
+
+##### Approach
+
+In this analysis, data prepared in part 1  - that consist of tmax, tmin, af days, and rainfall - was be combined with the average happiness ratings. The happiness data has information down to the county level. However, it was decided to proceed with the analysis at a regional level becuase of the distribution the weather station. There are 12 regions in the UK. Each weather station was assigned to a single region based on its latitude and longitude. The variables of the stations that were assigned a particular region were averaged to produce a new data set whose first few rows are shown in Table 7. 
+
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+library('PerformanceAnalytics')
+
+##### Preparing the data from the 12 regions for merging with weather data
+# Region names 
+region_names <- c("NORTH_EAST", "NORTH_WEST", "YORKSHIRE_AND_THE_HUMBER", "EAST_MIDLANDS", "WEST_MIDLANDS", "EAST", "LONDON", "SOUTH_EAST", "SOUTH_WEST", "WALES", "SCOTLAND", "NORTHERN_IRELAND")
+
+
+### To assign stations to a region, the lattitude and longitude are important
+region_lattitude <- c(55.0,54.0,53.6, 53.0,52.5,52.2,51.5,51.3,51.0,51.5,56.0,54.6)
+region_longitude <- c(-1.9,-2.6,-1.2,-0.8,-2.3,0.4,-0.1,-0.5,-3.2,-3.2,-3.2,5.9)
+region_happiness <- c(7.34,7.39, 7.41, 7.51,7.43,7.51,7.38,7.54, 7.50,7.44,7.45,7.75)
+
+
+# Making a data frame with region name as the row name. It has three columns: lattitude, longititude and happiness rating
+
+region_location_happniess_data <- data.frame(region_lattitude, region_longitude, region_happiness)
+
+row.names(region_location_happniess_data) <- region_names
+
+# The lattitude is the same for london and wales, so their longitude will be used when assigning weather stations to either on of them.  
+
+###### The following bounderies will be used to assign each station to its region ######
+
+#southwest is between lattitude equal and under 51.2
+#southeast is between 51.3b- 51.4
+#london is in lattitude 51.5-52.1 and between -0.1 and -3.1
+#wales is in lattitude 51.5 - 52.1 and between -3.2 and 0.3
+#east is between 52.2 - 52.4
+#west midlands between 52.5 - 52.9
+#east midlands between 53.0 - 53.5
+#yorkshire between 53.6 - 53.9
+#north west between 54.0 - 54.5
+#northen irelands between 54.6 - 54.9
+#north east between 55.0 - 55.9
+#scotland is betwee lattitude equal and over 56.0 
+
+##### Preparing the weather data to be merged with the region data
+# The following list contain lattitude, longitude for each data station
+Aberporth <- c(52.139, -4.570)
+Armagh <- c(54.352, -6.649)
+Ballypatrick  <- c(55.181, -6.153)
+Bradford <- c(53.813, -1.772)
+Braemar <- c(57.006,-3.396)
+Camborne <- c(50.218, -5.327)
+Cambridge <- c(52.245, 0.102)
+Cardiff <- c(51.488, -3.187)
+Chivenor <- c(51.089, -4.147)
+Cwmystwyth <- c(52.358, -3.802)
+Dunstaffnage <- c(56.451, -5.439)
+Durham <- c(54.768, -1.585)
+Eastbourne <- c(50.762, 0.285)
+Eskdalemuir <- c(55.311, -3.206)
+Heathrow <- c(51.479, -0.449)
+Hurn <- c( 50.779, -1.835)
+Lerwick <- c(60.139, -1.183)
+Leuchars <- c(56.377, -2.861)
+Lowestoft <- c(52.483, 1.727)
+Manston <- c(51.346, 1.337)
+Nairn <- c(57.593, -3.821)
+Newtonrigg <- c(54.670, -2.786)
+Oxford <- c(51.761, -1.262)
+Paisley <- c(55.846, -4.430)
+Ringway <- c(53.356, -2.279)
+Ross <- c(51.911, -2.584)
+Shawbury <- c(52.794, -2.663)
+Sheffield <- c(53.381, -1.490)
+Southampton <- c(50.898, -1.408)
+Stornoway <- c(58.214, -6.318)
+Sutton <- c(52.833,-1.250)
+Tiree <- c(56.500, -6.880)
+Valley <- c(53.252, -4.535)
+Waddington <- c(53.175, -0.522)
+Whitby <- c(54.481, -0.624)
+Wick <- c(58.454, -3.088)
+Yeovilton <- c(51.006, -2.641)
+
+# Making a data frame with the lattitude and longitude of each station
+station_lat_long <- data.frame(Aberporth, Armagh, Ballypatrick, Bradford, Braemar, Camborne, Cambridge, Cardiff, Chivenor, Cwmystwyth, Dunstaffnage, Durham, Eastbourne, Eskdalemuir, Heathrow, Hurn, Lerwick, Leuchars, Lowestoft, Manston, Nairn, Newtonrigg, Oxford, Paisley, Ringway, Ross, Shawbury, Sheffield, Southampton, Stornoway, Sutton, Tiree, Valley, Waddington, Whitby, Wick, Yeovilton)
+
+# A looping to produce lists of only lattitde and only longitude
+lattitude <- c()
+longitude <- c()
+
+for (i in station_lat_long){
+  lattitude <- c(lattitude, i[1])
+  longitude <- c(longitude, i[2])
+}
+
+# Compiling a data frame with the weather data as prepare in part 1 and the lattitude and longitude. 
+
+data_for_part1 <- read_csv("data_for_part1.csv")
+weather_location_data <- data.frame(lattitude, longitude, data_for_part1)
+```
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+
+##########                                                                         #########
+########## Assigning each station to a region based on the lattitude and longitude #########
+
+#south west region
+SOUTH_WEST <- c()
+SW <- filter(weather_location_data, lattitude<= 51.2)
+average_tmax <- mean(SW$tmax_av_values)
+average_tmin <- mean(SW$tmin_av_values)
+average_af_days <- mean(SW$af_days_av_values)
+average_rain <- mean(SW$rain_mm_av_values)
+SOUTH_WEST <- c(SOUTH_WEST, average_tmax, average_tmin,average_af_days,average_rain) # addign 2 new values in the regions data above
+
+#south east region
+SOUTH_EAST <- c()
+SE <- filter(weather_location_data, lattitude > 51.2 & lattitude <= 51.4)
+average_tmax <- mean(SE$tmax_av_values)
+average_tmin <- mean(SE$tmin_av_values)
+average_af_days <- mean(SE$af_days_av_values)
+average_rain <- mean(SE$rain_mm_av_values)
+SOUTH_EAST <- c(SOUTH_EAST, average_tmax, average_tmin,average_af_days,average_rain)
+
+#london region
+LONDON <- c()
+lond <- filter(weather_location_data, lattitude >51.4 & lattitude <= 52.1 & longitude > -3.1 & longitude <=-0.1 )
+average_tmax <- mean(lond$tmax_av_values)
+average_tmin <- mean(lond$tmin_av_values)
+average_af_days <- mean(lond$af_days_av_values)
+average_rain <- mean(lond$rain_mm_av_values)
+LONDON <- c(LONDON, average_tmax, average_tmin,average_af_days,average_rain)
+
+#wales region
+WALES <- c()
+wales <- filter(weather_location_data, lattitude > 51.4 & lattitude <= 52.1 & longitude >= -3.1 & longitude < 0.3 )
+average_tmax <- mean(wales$tmax_av_values)
+average_tmin <- mean(wales$tmin_av_values)
+average_af_days <- mean(wales$af_days_av_values)
+average_rain <- mean(wales$rain_mm_av_values)
+WALES <- c(WALES, average_tmax, average_tmin,average_af_days,average_rain)
+
+#east region
+EAST <- c()
+E <- filter(weather_location_data, lattitude<= 52.4 & lattitude > 52.1)
+average_tmax <- mean(E$tmax_av_values)
+average_tmin <- mean(E$tmin_av_values)
+average_af_days <- mean(E$af_days_av_values)
+average_rain <- mean(E$rain_mm_av_values)
+EAST <- c(EAST, average_tmax, average_tmin,average_af_days,average_rain)
+
+#west middlands region
+WEST_MIDLANDS <- c()
+WM <- filter(weather_location_data, lattitude > 52.4 & lattitude <= 52.9)
+average_tmax <- mean(WM$tmax_av_values)
+average_tmin <- mean(WM$tmin_av_values)
+average_af_days <- mean(WM$af_days_av_values)
+average_rain <- mean(WM$rain_mm_av_values)
+WEST_MIDLANDS <- c(WEST_MIDLANDS, average_tmax, average_tmin,  average_af_days,average_rain)
+
+#east midlands region
+EAST_MIDLANDS <- c()
+EM <- filter(weather_location_data, lattitude > 52.9 & lattitude <= 53.5)
+average_tmax <- mean(EM$tmax_av_values)
+average_tmin <- mean(EM$tmin_av_values)
+average_af_days <- mean(EM$af_days_av_values)
+average_rain <- mean(EM$rain_mm_av_values)
+EAST_MIDLANDS <- c(EAST_MIDLANDS, average_tmax, average_tmin, average_af_days,average_rain)
+
+#yorkshire region
+YORKSHIRE_AND_THE_HUMBER <- c()
+Y <- filter(weather_location_data, lattitude >53.5 & lattitude <= 53.9)
+average_tmax <- mean(Y$tmax_av_values)
+average_tmin <- mean(Y$tmin_av_values)
+average_af_days <- mean(Y$af_days_av_values)
+average_rain <- mean(Y$rain_mm_av_values)
+YORKSHIRE_AND_THE_HUMBER <- c(YORKSHIRE_AND_THE_HUMBER, average_tmax, average_tmin, average_af_days,average_rain)
+
+#north west
+NORTH_WEST <- c()
+NW <- filter(weather_location_data, lattitude >53.9 & lattitude <= 54.5)
+average_tmax <- mean(NW$tmax_av_values)
+average_tmin <- mean(NW$tmin_av_values)
+average_af_days <- mean(NW$af_days_av_values)
+average_rain <- mean(NW$rain_mm_av_values)
+NORTH_WEST <- c(NORTH_WEST, average_tmax, average_tmin,average_af_days,average_rain)
+
+#north ireland
+NORTHERN_IRELAND <- c()
+NI <- filter(weather_location_data, lattitude >54.5 & lattitude <= 54.9)
+average_tmax <- mean(NI$tmax_av_values)
+average_tmin <- mean(NI$tmin_av_values)
+average_af_days <- mean(NI$af_days_av_values)
+average_rain <- mean(NI$rain_mm_av_values)
+NORTHERN_IRELAND <- c(NORTHERN_IRELAND, average_tmax, average_tmin, average_af_days,average_rain)
+
+#north east
+NORTH_EAST <- c()
+NE <- filter(weather_location_data, lattitude >54.9 & lattitude <= 55.9)
+average_tmax <- mean(NE$tmax_av_values)
+average_tmin <- mean(NE$tmin_av_values)
+average_af_days <- mean(NE$af_days_av_values)
+average_rain <- mean(NE$rain_mm_av_values)
+NORTH_EAST <- c(NORTH_EAST, average_tmax, average_tmin,average_af_days,average_rain)
+
+#scotland
+SCOTLAND <- c()
+S <- filter(weather_location_data, lattitude > 55.9)
+average_tmax <- mean(S$tmax_av_values)
+average_tmin <- mean(S$tmin_av_values)
+average_af_days <- mean(S$af_days_av_values)
+average_rain <- mean(S$rain_mm_av_values)
+SCOTLAND <- c(SCOTLAND, average_tmax, average_tmin,average_af_days,average_rain )
+
+
+#A data frame of all the region and their weather data (obtained from averages of assigned stations)
+weather_location_df<- data.frame(NORTH_EAST, NORTH_WEST, YORKSHIRE_AND_THE_HUMBER, EAST_MIDLANDS, WEST_MIDLANDS, EAST, LONDON, SOUTH_EAST, SOUTH_WEST, WALES, SCOTLAND, NORTHERN_IRELAND)
+
+# Creating a better data frame will all components need to proceed with the analysis. 
+# reordering the data frame to make columns for min temp, max temp and happiness aveage 
+
+
+tmax <- c()
+tmin <- c()
+af_days <- c()
+rain <- c()
+happiness <- region_location_happniess_data[3]
+
+for (i in weather_location_df){
+  tmax <- c(tmax, i[1])
+  tmin <- c(tmin, i[2])
+  af_days <- c(af_days, i[3])
+  rain <- c(rain, i[4])
+  
+}
+
+# Data frame of clean data for part 3
+data_for_part3 <- data.frame(happiness, tmax, tmin, af_days, rain)
+
+# Exporting the clean data a "data_for_part3.csv".
+write.table(data_for_part3, file = "data_for_part3.csv", sep = ",", row.names = FALSE)
+```
+
+##### Table 7: The data prepared for part 3 analysis
+
+```{r}
+data_for_part3
+```
+
+
+#### Exporing the the data
+
+When searching for a correlation between variables in a data set, it is important to ensure that there are  no outliers. There were some outliers identified in the happiness ratings and the rain fall variables. Outliers can lead to misleading results, hence, it is essential to remove them early on. 
+
+##### Figure 5 : The Initial Box plots of the variables with outliers
+
+```{r}
+# Box plots to see if there are any outliers in the data
+# They are all plotted seperated because they are on different sclaes.
+par(mfrow =c(2,5))
+boxplot(data_for_part3$region_happiness, main = "happiness")
+boxplot(data_for_part3$tmax, main = "tmax")
+boxplot(data_for_part3$tmin, main ="tmin")
+boxplot(data_for_part3$af_days, main = "af_days")
+boxplot(data_for_part3$rain, main = "rain")
+```
+
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+
+# There were outliers identified in happiness and rain variabls 
+outliers_happiness <- boxplot(data_for_part3$region_happiness)$out
+outliers_rain <- boxplot(data_for_part3$rain)$out
+
+# Removing the outliers
+data_for_part3 <- data_for_part3[-which(data_for_part3$region_happiness %in% outliers_happiness),]
+data_for_part3 <- data_for_part3[-which(data_for_part3$rain %in% outliers_rain),]
+```
+
+##### Figure 6 : The Final Box plots of the variables without outliers
+
+```{r}
+# Box plots to see if there are any more outliers in the data
+par(mfrow =c(2,5))
+boxplot(data_for_part3$region_happiness, main = "happiness")# the first plot
+boxplot(data_for_part3$tmax, main = "tmax")
+boxplot(data_for_part3$tmin, main ="tmin")
+boxplot(data_for_part3$af_days, main = "af_days")
+boxplot(data_for_part3$rain, main = "rain")# the plast plot
+```
+
+
+#### A correlation Matrix
+
+After cleaning the data, it is important to visualize the relationships between variables in the data set. A pairwise plot that also included a correlation matrix was select for that purpose. A correlation matrix is often used to explore the strength of a relationship between variables before a major analysis is done. As such, this step was done to inform decisions made during the implementation of a multiple regression model that was build to further investigate the objective of part 3: to determine if the weather affects the average ratings of people’s happiness. 
+
+##### Figure 7 : A pair wise plot and correlation matrix
+```{r}
+# Exploring the pair wise correlations between the data variables
+chart.Correlation(data_for_part3)
+```
+
+
+
+The plots in figure 6 show a range of relationships between various weather variables and the happiness rankings. It seems that people's happiness ratings have a weak inverse relationship with maximum temperature and the number of air frost days, their correlation coefficiencies are -0.033 and -0.42, respectively. Tha happiness ratings also have a weak positive relationship with the minimum temperature and total rainfall. Their respective correlation coefficiencies are 0.37 and 0.21. 
+
+Apart from the correlation values, Figure 6 also depicts pairwise plots between the happiness ratings data and all the other variables. It can be observed that af_days and rain variables have a complex - if any -  relationship with the happiness ratings. It takes a significant amount of time to establish the nature of that relation, and the data is too small to rigorously follow such pursuits. As such, af_day and rain were not condered in the regression model, because their relationship with the target variabe is obviously non-linear. 
+
+#### Multiple regression 
+
+Multiple regression was used in this case to determine the strength of the relationship between multiple predictor variables and a target variable. In this case, the two temperature data are the predictor variables. Happiness ratings are the target variable. It is assumed that all variables are independent. 
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+# Building/trainig the multiple regression model
+multiple_reg <- lm(region_happiness ~ tmax + tmin, data = data_for_part3)
+residuals(multiple_reg)
+```
+
+##### Table 8: The multilpe regression results.
+
+```{r}
+summary(multiple_reg)
+```
+
+##### Figure 8: Multiple regreesion residuals plots
+
+```{r}
+# Inspecting the residuals to see if they are randomly distributed. This usually is a good indication that the relationships in the model are most likely correct.
+par(mfrow =c(2,3))
+plot(residuals(multiple_reg), main = "A plot of Residuals") # a plot to of the residuals
+hist(residuals(multiple_reg)) # a histogram of the residuals
+
+```
+
+The adjusted R-squared value of the multiple regression depicted by Table 8 is 0.6329. Therefore, the multiple regression model/line is fairly a good fit, assuming that a value above 5 is acceptable to some degree. Table 8 also reveals a statistically significant relationship between the weather variables considered and the happiness ratings. All their p-values were below the significance thresh-hold of 0.05 by a 10 fold order of magnitude. However, the residuals are not completely randomly distributed as seen in Figure 8. Thus, the regression model may not be as good. 
+
+Maximum temperature appears to be inversly related to the happiness ratings with a coefficient of - 0.07547. Minimum temperature seems to be positively related to the happiness ratings with a correlation coefficient of 0.13020. The overall relationship described by the model can be summarised as:
+happiness ratings = 7.61174 - 0.07547 * tmax + 0.13020 * tmin
+
+It is important to note that the data set used in this anaylsis was very small. Therefore, these findings cannot be generalized. 
+
+#### Conclusion
+
+It seems that there is a correlation between temperature (both maximum and minimum) and happiness ratings in the data set used for this analysis. However, correlation does not imply causation. It is unclear if people's happiness is in any way caused by the weather. The observed results may also be attributed to chance. More data for analysis is needed to reliably determine the nature of the relationship between temperature and the happiness ratings. 
+
+\newpage
+
+
+
+
+## PART 4 : Does Money Bring Happiness?
+
+#### Aim 
+
+In this part, I decided to pursue option (4a) and explore the happiness data further. There is a common statement that says "money does not bring happiness." All the data that was used in this study was obtained from a publicly available source: the UK Office for Natinal Statistics. 
+
+The data on GDHI per head was used as a measure of the amount of disposable income that people have on averge. GDHI per head is defined as the "amount of money that all of the individuals in the household sector have available for spending or saving after they have paid direct and indirect taxes and received any direct benefits." Although other income data could have been suitable for this analysis, GDHI per head is a better reflection of an indivisual's financial standing becuase it takes into account the prices of commodities within the area they live (Gross).
+
+#### Approach 
+
+To examine the relationship between happiness ratings and GDHI per head, I sought for data that at the county level so that there will be more data points to consider in the analysis. The two data sets that were used, were merged by county name. Only counties whose names appeared the same in both data sets  were used. This was done to avoid misundertanding the labeling and contaminating the results by adding wrongly labeled data. Data from 53 data counties was collect this way. 
+
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+#### Steps taken in the analysis:
+
+#1. Preparing the GDHI per head data.
+
+#2. Merging it with the happiness data. 
+
+#3. Explore the data.
+
+#4. Build a linear regression model to explore the relationship between the 2 variables. 
+
+
+##### Preparing the GDHI per head data
+library(readxl)
+gdhi <- read_excel("gdhi.xls")
+
+
+#loading a excel spreadsheet. I had removed the other tables columns to only remain with relevent data. 
+
+#The data has a colum called NUTS level. It seems county data is NUTS3. I will only use the county data in this analysis.
+
+gdhi_county <- filter(gdhi, NUTS_level == "NUTS3") 
+county_names <- gdhi_county[3] 
+
+# The happiness survey done in 2013-2014, there fore, I will use the gdhi data from 2012 to 2015 to capture the financial circumstance at the time.
+gdhi_4yr_data <- select(gdhi_county,Region_name,'2012':'2014' )
+
+# Coomputing the average of the 4 year gdhi
+gdhi_4yr_data$mean_gdhi <- rowMeans(gdhi_4yr_data[,-1]) # merging the averages to the data frame
+
+gdhi_average <- as.data.frame(column_to_rownames(gdhi_4yr_data, var = "Region_name")) #made the region name a row name
+
+#making a csv file to save
+write.table(gdhi_average, file = "gdhi_average.csv", sep = ",", row.names = FALSE)
+ 
+
+##### Merging the gdhi data with the happiness data
+
+# The happiness table was seperated from the rest in excel. All the columns were removed except for average ratings, regions name and area code. 
+happiness <- read_excel("happiness.xls")
+
+#merging the happiness data with the gdhi data based on common county names
+gdhi_happiness <-  merge(gdhi_4yr_data,happiness, by ='Region_name') 
+gdhi_happiness_final <-  select(gdhi_happiness, Region_name, mean_gdhi, average_rating) # removing all unncessary columns to remain with the mean gdhi and average happiness rating per each common county
+  
+gdhi_happiness_final <- column_to_rownames(gdhi_happiness_final, var = "Region_name")
+
+gdhi_happiness_final$average_rating <- as.numeric(as.character(gdhi_happiness_final$average_rating))  # Convert one variable to numeric
+#making a csv file to save
+write.table(gdhi_happiness_final, file = "gdhi_happiness_final.csv", sep = ",", row.names = FALSE)
+
+```
+
+##### Table 9: The first 5 rows of the  data prepared for part 4. 
+
+```{r}
+head (gdhi_happiness_final)
+```
+
+##### Data Expoloration
+
+It is important to check for, and remove outliers before proceeding to the main analysis. Outliers can negatively affect the quality of conclusions deduced from a particular data set. They can exaggerate or undermine relationships and distributions. 
+
+The combined data was plotted on a box plot to identify and eliminate outliers. 
+
+##### Figure 9 : The boxplots shows data with and without outliers
+```{r,results="hide", warning = FALSE, include = FALSE}
+#toavoid altering the clean data, I will create another data frame to use in the exploration
+
+df <- gdhi_happiness_final
+```
+
+```{r}
+par(mfrow =c(2,2))
+#searching for outliers 
+outliers_gdhi <- boxplot(df$mean_gdhi, main = "GDHI (With outliers)")$out 
+outliers_ratings <- boxplot(df$average_rating, main = "Happiness Ratings(With many outliers)")$out
+```
+
+
+```{r,results="hide", warning = FALSE, include = FALSE}
+# removing the outliers
+df <- df[-which(df$mean_gdhi %in% outliers_gdhi),]
+df <- df[-which(df$average_rating %in% outliers_ratings),]
+``` 
+
+```{r}
+par(mfrow =c(2,2))
+#Plotting the new data that does not have outliers 
+boxplot(df$mean_gdhi, main = "GDHI (Without outliers)")
+boxplot(df$average_rating, main = "Happiness Ratings(Without many outliers)")
+```
+
+
+
+The data without outliers was plotted on a correlation matrix to see the general trends and the correlation coefficiencies between the variables (Figure 9). A correlation coefficient of 0.11 was observed. Therefore, there is a weak but positive correlation between the GDHI per head and the happiness ratings in the counties that were considered in this analysis. 
+
+#####  Figure 10 : A Correlation for Mean GDHI per Head vs Average Happiness Ratings
+
+```{r}
+chart.Correlation(df)
+```
+
+However, the plot of the 2 variables depicted in Figure 10 on the left bottom corner reveals an interesting pattern. It seems that happiness ratings increase as GDHI per head increases until the  GDHI per head reaches approximately £17 500. Thereafter, the happiness ratings either remain constant or they start to decline. 
+
+The data sample considered in this case is not adequate to make generalizations. Nonetheless, for the populations whose data was used in this analysis, it can be argued that money does bring happiness, but only until a certain point. I believe that this finding makes sense. People need enough disposable income to save for partaking in joyful social activities, maintain a good quality of life, and not worry about financial struggles. Once they have achieved to meet most of these needs and wants, it becomes difficult for more income to increase their happiness as it would someone from a more humble economic background. 
+
+\newpage
+
+## Citations 
+
+###### Gross Disposable Household Income (GDHI) per head. Retrieved from: https://www.surreyi.gov.uk/dataset/vq187/gross-disposable-household-income-gdhi-per-head
+
+###### Grolemund, Garrett, and Hadley Wickham. “R For Data Science.” R For Data Science, r4ds.had.co.nz/.
+
+###### “Historic Station Data.” Met Office, www.metoffice.gov.uk/research/climate/maps-and-data/historic-station-data.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
